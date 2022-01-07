@@ -1,0 +1,108 @@
+package com.datasite.test.service;
+
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.datasite.test.model.Project;
+import com.datasite.test.model.RegistredUser;
+import com.datasite.test.model.UnRegistredUser;
+import com.datasite.test.model.User;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+@Service
+public class UsersService {
+
+    @Autowired
+    RestTemplate restTemplate;
+
+    @Autowired
+    UnRegistredUserService unRegistredUserService;
+
+    @Autowired
+    RegisteredUserService registeredUserService;
+
+    @Value("${registered.url}")
+    private String urlRegistred;
+
+    @Value("${project.url}")
+    String urlProject;
+
+
+    public List<User> getUsers() {
+
+        List<RegistredUser> registeredUsers = registeredUserService.getUsers();
+        List<UnRegistredUser> unregistredUserList = unRegistredUserService.getUsers();
+
+        List<Project> projectsResponse = restTemplate.getForObject(urlProject, List.class);
+
+        HashMap<String, List<String>> map = new HashMap<>();   // map of userd, projectId user id,
+
+        ObjectMapper mapper = new ObjectMapper();
+        List<Project> projects = mapper.convertValue(
+                projectsResponse,
+                new TypeReference<List<Project>>() {
+                }
+        );
+
+
+        for (Project p : projects) {
+            String key = p.getUserId();
+            List<String> ids = new ArrayList<>();
+            if (map.containsKey(key)) {
+                ids = map.get(key);
+                ids.add(p.getProjectId());
+                map.put(key, ids);
+            } else {
+                ids.add(p.getProjectId());
+                map.put(key, ids);
+            }
+        }
+
+
+        List<RegistredUser> users = mapper.convertValue(
+                registeredUsers,
+                new TypeReference<List<RegistredUser>>() {
+                }
+        );
+
+
+        List<User> response = new ArrayList<>();
+
+        for (RegistredUser user : users) {
+            String userId = user.getId();
+            if (map.containsKey(userId)) {
+                List<String> projectIds = map.get(userId);
+                user.setProjectIds(projectIds);
+                response.add(user);
+            } else {
+                response.add(user);
+            }
+        }
+        //------------------------
+        List<UnRegistredUser> users2 = mapper.convertValue(
+                unregistredUserList,
+                new TypeReference<List<UnRegistredUser>>() {
+                }
+        );
+
+        for (UnRegistredUser user : users2) {
+            String userId = user.getId();
+            if (map.containsKey(userId)) {
+                List<String> projectIds = map.get(userId);
+                user.setProjectIds(projectIds);
+                response.add(user);
+            } else {
+                response.add(user);
+            }
+        }
+
+        return response;
+    }
+
+}
